@@ -8,38 +8,19 @@
 <script>eruda.init();</script>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #111; touch-action: none; }
-  #hint {
-    position: absolute; bottom: 20px; left: 0; right: 0;
-    color: #aaa; font-family: sans-serif; font-size: 13px;
-    text-align: center; pointer-events: none;
-  }
-  #title {
-    position: absolute; top: 12px; left: 0; right: 0;
-    color: white; font-family: sans-serif; font-size: 15px;
-    text-align: center; pointer-events: none;
-  }
+  #title { position: absolute; top: 12px; left: 0; right: 0; color: #fff; font-family: sans-serif; font-size: 15px; text-align: center; pointer-events: none; }
+  #hint { position: absolute; bottom: 20px; left: 0; right: 0; color: #aaa; font-family: sans-serif; font-size: 13px; text-align: center; pointer-events: none; }
 </style>
 </head>
 <body>
 <div id="title">Tap the cube to fracture it</div>
 <div id="hint">Drag to rotate &middot; Pinch to zoom</div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-    "@dgreenheck/three-pinata": "https://cdn.jsdelivr.net/npm/@dgreenheck/three-pinata@0.3.10/dist/three-pinata.esm.js",
-    "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.11.2/rapier.es.js"
-  }
-}
-</script>
-
 <script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { DestructibleMesh, FractureOptions } from '@dgreenheck/three-pinata';
-import RAPIER from '@dimforge/rapier3d-compat';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import { DestructibleMesh, FractureOptions } from 'https://cdn.jsdelivr.net/npm/@dgreenheck/three-pinata@0.3.10/dist/three-pinata.esm.js';
+import RAPIER from 'https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.11.2/rapier.es.js';
 
 await RAPIER.init();
 
@@ -60,7 +41,6 @@ document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 1, 0);
 controls.enableDamping = true;
-controls.dampingFactor = 0.1;
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
@@ -68,13 +48,9 @@ dirLight.position.set(6, 12, 8);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
-// Ground in physics world
-const groundBody = world.createRigidBody(
-  RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.1, 0)
-);
+const groundBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.1, 0));
 world.createCollider(RAPIER.ColliderDesc.cuboid(20, 0.1, 20), groundBody);
 
-// Ground in scene
 const groundMesh = new THREE.Mesh(
   new THREE.BoxGeometry(40, 0.2, 40),
   new THREE.MeshStandardMaterial({ color: 0x2a2a3e })
@@ -83,7 +59,6 @@ groundMesh.position.y = -0.1;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
-// Destructible cube
 const geo = new THREE.BoxGeometry(1.4, 1.4, 1.4);
 const outerMat = new THREE.MeshStandardMaterial({ color: 0x4a90e2, roughness: 0.4 });
 const innerMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, roughness: 0.8 });
@@ -93,9 +68,8 @@ mesh.position.set(0, 3, 0);
 mesh.castShadow = true;
 scene.add(mesh);
 
-// Physics body for the whole cube
-let bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 3, 0);
-let body = world.createRigidBody(bodyDesc);
+const bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 3, 0);
+const body = world.createRigidBody(bodyDesc);
 world.createCollider(RAPIER.ColliderDesc.cuboid(0.7, 0.7, 0.7), body);
 
 const fragments = [];
@@ -126,23 +100,18 @@ function fracture() {
       .setTranslation(frag.position.x, frag.position.y, frag.position.z);
     const fragBody = world.createRigidBody(fragBodyDesc);
 
-    // approximate collider from fragment bounds
     const box = new THREE.Box3().setFromObject(frag);
     const size = new THREE.Vector3();
     box.getSize(size);
-    const half = { x: size.x / 2, y: size.y / 2, z: size.z / 2 };
+    const half = { x: Math.max(size.x / 2, 0.05), y: Math.max(size.y / 2, 0.05), z: Math.max(size.z / 2, 0.05) };
 
-    world.createCollider(
-      RAPIER.ColliderDesc.cuboid(half.x, half.y, half.z),
-      fragBody
-    );
+    world.createCollider(RAPIER.ColliderDesc.cuboid(half.x, half.y, half.z), fragBody);
 
     fragments.push({ mesh: frag, body: fragBody });
   });
 }
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  // простой фильтр: если это короткий тап — дробим, если драг — крутим
   const startX = e.clientX, startY = e.clientY;
   const onUp = (upEvent) => {
     const dx = upEvent.clientX - startX;
