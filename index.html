@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>3D Fracture Editor</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #111; touch-action: none; }
+        canvas { display: block; }
+        #info {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            color: white; font-family: sans-serif; font-size: 14px;
+            pointer-events: none; text-align: center;
+            text-shadow: 1px 1px 2px black;
+        }
+        #hint {
+            position: absolute; bottom: 20px; left: 0; right: 0;
+            color: #aaa; font-family: sans-serif; font-size: 12px;
+            text-align: center; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Tap the cube to fracture it</div>
+    <div id="hint">Drag to rotate · Pinch to zoom</div>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+            "@dgreenheck/three-pinata": "https://unpkg.com/@dgreenheck/three-pinata@0.3.10/dist/three-pinata.esm.js",
+            "@dimforge/rapier3d-compat": "https://unpkg.com/@dimforge/rapier3d-compat@0.11.2/rapier.es.js"
+        }
+    }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { DestructibleMesh, FractureOptions } from '@dgreenheck/three-pinata';
+        import RAPIER from '@dimforge/rapier3d-compat';
+
+        // --- Инициализация физики ---
+        await RAPIER.init();
+        const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+
+        // --- Сцена ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e);
+
+        const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
+        camera.position.set(0, 2.5, 6);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 0.5, 0);
+        controls.enableDamping = true;
+
+        // --- Свет ---
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        dirLight.position.set(5, 10, 7);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // --- Земля ---
+        const groundBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.1, 0));
+        world.createCollider(RAPIER.ColliderDesc.cuboid(15, 0.1, 15), groundBody);
+
+        const groundMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(30, 0.2, 30),
+            new THREE.MeshStandardMaterial({ color: 0x2a2a3e })
+        );
+        groundMesh.position.y = -0.1;
+        groundMesh.receiveShadow = true;
+        scene.add(groundMesh);
+
+        // --- Разрушаемый куб ---
+        const geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+        const outerMat = new THREE.MeshStandardMaterial({ color: 0x4a90e2, roughness: 0.3 });
+        const innerMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, roughness: 0.8 });
+
+        const mesh = new DestructibleMesh(geometry, outerMat, innerMat);
+        mesh.position.set(0, 2.5, 0);
+        mesh.castShadow = true;
+        scene.add(mesh);
+
+        // Физическое тело целого куба
+        let bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 2.5, 0);
+        let body = world.createRigidBody(bodyDesc);
+        world.createCollider(RAPIER.ColliderDesc.cuboid(0.6, 0.6, 0.6), body);
+
+        let fragments = []; // { mesh, body }
+        let isFractured = false;
+
+        // --- Функция дробления ---
+        function fracture() {
+            if (isFractured) return;
+            isFractured = true;
+
+            const options = new FractureOptions({
+                fractureMethod: 'voronoi',
+                fragmentCount: 30, // Количество осколков (на телефоне лучше 20-30)
+                voronoiOptions: {
+                    mode: '3D',
+                    impactPoint: new THREE.Vector3(0, 0, 0) // Точка удара (локальные координаты)
+                }
+            });
+
+            // Удаляем целое физическое тело
+            world.removeRigidBody(body);
+            mesh.visible = false;
+
+            // Дробим и добавляем осколки в сцену + физику
+            mesh.fracture(options, (frag) => {
+                frag.position.copy(mesh.position);
+                frag.castShadow = true;
+                scene.add(frag);
+
+                const fragBodyDesc = RAPIER.RigidBodyDesc.dynamic()
+                    .setTranslation(frag.position.x, frag.position.y, frag.position.z);
+                const fragBody = world.createRigidBody(fragBodyDesc);
+
+                // Коллайдер в виде небольшого куба (упрощение)
+                world.createCollider(RAPIER.ColliderDesc.cuboid(0.15, 0.15, 0.15), fragBody);
+
+                fragments.push({ mesh: frag, body: fragBody });
+            });
+        }
+
+        // --- Обработка тапа ---
+        renderer.domElement.addEventListener('pointerdown', fracture);
+
+        // --- Анимационный цикл ---
+        function animate() {
+            requestAnimationFrame(animate);
+            world.step();
+
+            if (!isFractured) {
+                const t = body.translation();
+                mesh.position.set(t.x, t.y, t.z);
+            } else {
+                for (const f of fragments) {
+                    const t = f.body.translation();
+                    f.mesh.position.set(t.x, t.y, t.z);
+                }
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // --- Ресайз ---
+        addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+    </script>
+</body>
+</html>
