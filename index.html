@@ -16,11 +16,22 @@
 <div id="title">Tap the cube to fracture it</div>
 <div id="hint">Drag to rotate &middot; Pinch to zoom</div>
 
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+    "three-pinata": "https://cdn.jsdelivr.net/npm/three-pinata@0.1.1/lib/three-pinata.esm.js",
+    "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.11.2/rapier.es.js"
+  }
+}
+</script>
+
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-import { DestructibleMesh, FractureOptions } from 'https://cdn.jsdelivr.net/npm/@dgreenheck/three-pinata@0.3.10/dist/three-pinata.esm.js';
-import RAPIER from 'https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.11.2/rapier.es.js';
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { DestructibleMesh, FractureOptions } from 'three-pinata';
+import RAPIER from '@dimforge/rapier3d-compat';
 
 await RAPIER.init();
 
@@ -103,7 +114,11 @@ function fracture() {
     const box = new THREE.Box3().setFromObject(frag);
     const size = new THREE.Vector3();
     box.getSize(size);
-    const half = { x: Math.max(size.x / 2, 0.05), y: Math.max(size.y / 2, 0.05), z: Math.max(size.z / 2, 0.05) };
+    const half = {
+      x: Math.max(size.x / 2, 0.05),
+      y: Math.max(size.y / 2, 0.05),
+      z: Math.max(size.z / 2, 0.05)
+    };
 
     world.createCollider(RAPIER.ColliderDesc.cuboid(half.x, half.y, half.z), fragBody);
 
