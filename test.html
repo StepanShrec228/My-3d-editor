@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Test</title>
+</head>
+<body style="background:#111;color:#fff;font-family:sans-serif;padding:20px;font-size:20px">
+<h1 id="a">Скрипт не запустился</h1>
+<div id="b">Ожидание...</div>
+
+<script>
+document.getElementById('a').textContent = 'Обычный script работает';
+document.getElementById('b').textContent = 'Время: ' + new Date().toLocaleTimeString();
+</script>
+
+<script type="module">
+document.getElementById('b').textContent += ' | Модуль тоже работает';
+</script>
+
+</body>
+</html>
