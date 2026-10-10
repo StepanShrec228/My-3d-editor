@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>3D Fracture Editor</title>
+    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+    <script>eruda.init();</script>
     <style>
         body { margin: 0; overflow: hidden; background: #111; touch-action: none; }
         canvas { display: block; }
@@ -26,10 +28,10 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-            "@dgreenheck/three-pinata": "https://unpkg.com/@dgreenheck/three-pinata@0.3.10/dist/three-pinata.esm.js",
-            "@dimforge/rapier3d-compat": "https://unpkg.com/@dimforge/rapier3d-compat@0.11.2/rapier.es.js"
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "@dgreenheck/three-pinata": "https://cdn.jsdelivr.net/npm/@dgreenheck/three-pinata@0.3.10/dist/three-pinata.esm.js",
+            "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.11.2/rapier.es.js"
         }
     }
     </script>
@@ -39,11 +41,9 @@
         import { DestructibleMesh, FractureOptions } from '@dgreenheck/three-pinata';
         import RAPIER from '@dimforge/rapier3d-compat';
 
-        // --- Инициализация физики ---
         await RAPIER.init();
         const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
 
-        // --- Сцена ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a2e);
 
@@ -60,14 +60,12 @@
         controls.target.set(0, 0.5, 0);
         controls.enableDamping = true;
 
-        // --- Свет ---
         scene.add(new THREE.AmbientLight(0xffffff, 0.5));
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
         dirLight.position.set(5, 10, 7);
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- Земля ---
         const groundBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.1, 0));
         world.createCollider(RAPIER.ColliderDesc.cuboid(15, 0.1, 15), groundBody);
 
@@ -79,7 +77,6 @@
         groundMesh.receiveShadow = true;
         scene.add(groundMesh);
 
-        // --- Разрушаемый куб ---
         const geometry = new THREE.BoxGeometry(1.2, 1.2, 1.2);
         const outerMat = new THREE.MeshStandardMaterial({ color: 0x4a90e2, roughness: 0.3 });
         const innerMat = new THREE.MeshStandardMaterial({ color: 0xff6b6b, roughness: 0.8 });
@@ -89,33 +86,29 @@
         mesh.castShadow = true;
         scene.add(mesh);
 
-        // Физическое тело целого куба
         let bodyDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 2.5, 0);
         let body = world.createRigidBody(bodyDesc);
         world.createCollider(RAPIER.ColliderDesc.cuboid(0.6, 0.6, 0.6), body);
 
-        let fragments = []; // { mesh, body }
+        let fragments = [];
         let isFractured = false;
 
-        // --- Функция дробления ---
         function fracture() {
             if (isFractured) return;
             isFractured = true;
 
             const options = new FractureOptions({
                 fractureMethod: 'voronoi',
-                fragmentCount: 30, // Количество осколков (на телефоне лучше 20-30)
+                fragmentCount: 30,
                 voronoiOptions: {
                     mode: '3D',
-                    impactPoint: new THREE.Vector3(0, 0, 0) // Точка удара (локальные координаты)
+                    impactPoint: new THREE.Vector3(0, 0, 0)
                 }
             });
 
-            // Удаляем целое физическое тело
             world.removeRigidBody(body);
             mesh.visible = false;
 
-            // Дробим и добавляем осколки в сцену + физику
             mesh.fracture(options, (frag) => {
                 frag.position.copy(mesh.position);
                 frag.castShadow = true;
@@ -124,18 +117,14 @@
                 const fragBodyDesc = RAPIER.RigidBodyDesc.dynamic()
                     .setTranslation(frag.position.x, frag.position.y, frag.position.z);
                 const fragBody = world.createRigidBody(fragBodyDesc);
-
-                // Коллайдер в виде небольшого куба (упрощение)
                 world.createCollider(RAPIER.ColliderDesc.cuboid(0.15, 0.15, 0.15), fragBody);
 
                 fragments.push({ mesh: frag, body: fragBody });
             });
         }
 
-        // --- Обработка тапа ---
         renderer.domElement.addEventListener('pointerdown', fracture);
 
-        // --- Анимационный цикл ---
         function animate() {
             requestAnimationFrame(animate);
             world.step();
@@ -155,7 +144,6 @@
         }
         animate();
 
-        // --- Ресайз ---
         addEventListener('resize', () => {
             camera.aspect = innerWidth / innerHeight;
             camera.updateProjectionMatrix();
